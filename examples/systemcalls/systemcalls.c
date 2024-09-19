@@ -1,5 +1,10 @@
 #include "systemcalls.h"
-
+#include <stdlib.h>
+#include <unistd.h>
+#include <sys/wait.h>
+#include <fcntl.h>
+#include <sys/types.h>
+#include <sys/stat.h>
 /**
  * @param cmd the command to execute with system()
  * @return true if the command in @param cmd was executed
@@ -16,8 +21,11 @@ bool do_system(const char *cmd)
  *   and return a boolean true if the system() call completed with success
  *   or false() if it returned a failure
 */
-
-    return true;
+	int fbk = system(cmd);
+	if(fbk == 0)
+		return true;
+	else
+		return false;
 }
 
 /**
@@ -43,6 +51,7 @@ bool do_exec(int count, ...)
     for(i=0; i<count; i++)
     {
         command[i] = va_arg(args, char *);
+	printf("%s\n",command[i]);
     }
     command[count] = NULL;
     // this line is to avoid a compile warning before your implementation is complete
@@ -59,9 +68,32 @@ bool do_exec(int count, ...)
  *
 */
 
+	int status;	
+	int pid = fork();
+	if(pid ==-1)
+		return false;
+	else if(pid == 0)
+	{	
+		int execFbk = execv(command[0],command);
+        if(execFbk < 0)
+        {
+             printf("Error while executing command");
+            exit(-1);
+        }
+
+	}
+	else
+	{
+       
+		if( wait(&status) < 0)
+            return false;
+        if( (WEXITSTATUS(status) == 0)) //if you want to check for -1, equate it to 255 
+            return true;
+	}
+		
     va_end(args);
 
-    return true;
+    return false;
 }
 
 /**
@@ -83,6 +115,53 @@ bool do_exec_redirect(const char *outputfile, int count, ...)
     // this line is to avoid a compile warning before your implementation is complete
     // and may be removed
     command[count] = command[count];
+
+    int status;
+    int fres = fork();
+
+    if(fres < 0)
+    {
+        printf("Error while forking");
+        exit(-1);
+    }
+    else if(fres == 0)
+    {
+        int fd = open(outputfile, O_WRONLY | O_CREAT, 0644);
+        if(fd < 0)
+        {
+            printf("Error while opening file");
+            exit(-1);
+        }
+        else
+        {
+
+            int dres = dup2(fd, 1);
+            if(dres < 0)
+                printf("Error while duplicating file descriptor");
+
+            else 
+            {
+                int eres = execv(command[0], command);
+                if(eres < 0)
+                { 
+                    printf("Error while executing command");
+                    exit(-1);
+                }
+            }
+
+        }
+        close(fd);
+
+    }
+    
+    else
+    {
+       if( wait(&status) < 0)
+           return false;
+        if( (WEXITSTATUS(status) == -1))
+            return false;
+	
+    }
 
 
 /*
